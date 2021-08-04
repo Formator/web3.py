@@ -1,12 +1,3 @@
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Sequence,
-    Tuple,
-)
-
 from eth_typing import (
     TypeStr,
 )
@@ -18,6 +9,14 @@ from eth_utils.curried import (
 )
 from eth_utils.toolz import (
     curry,
+)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Sequence,
+    Tuple,
 )
 
 from web3._utils.abi import (
@@ -146,6 +145,8 @@ class RPC:
     # web3
     web3_clientVersion = RPCEndpoint("web3_clientVersion")
 
+    # Tolar
+    tol_getBalance = RPCEndpoint("tol_getBalance")
 
 TRANSACTION_PARAMS_ABIS = {
     'data': 'bytes',

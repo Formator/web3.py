@@ -2,9 +2,19 @@ import decimal
 from eth_abi.codec import (
     ABICodec,
 )
+from eth_typing import (
+    AnyAddress,
+    ChecksumAddress,
+    HexStr,
+    Primitives,
+)
+from eth_typing.abi import (
+    TypeStr,
+)
 from eth_utils import (
     add_0x_prefix,
     apply_to_return_value,
+    combomethod,
     from_wei,
     is_address,
     is_checksum_address,
@@ -23,25 +33,14 @@ from hexbytes import (
     HexBytes,
 )
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     List,
     Optional,
     Sequence,
-    TYPE_CHECKING,
     Union,
     cast,
-)
-
-from eth_typing import (
-    AnyAddress,
-    ChecksumAddress,
-    HexStr,
-    Primitives,
-)
-from eth_typing.abi import TypeStr
-from eth_utils import (
-    combomethod,
 )
 
 from ens import ENS
@@ -61,14 +60,14 @@ from web3._utils.encoding import (
     to_hex,
     to_json,
 )
-from web3._utils.rpc_abi import (
-    RPC,
-)
 from web3._utils.module import (
     attach_modules,
 )
 from web3._utils.normalizers import (
     abi_ens_resolver,
+)
+from web3._utils.rpc_abi import (
+    RPC,
 )
 from web3.eth import (
     Eth,
@@ -97,14 +96,14 @@ from web3.parity import (
 from web3.providers import (
     BaseProvider,
 )
+from web3.providers.async_rpc import (
+    AsyncHTTPProvider,
+)
 from web3.providers.eth_tester import (
     EthereumTesterProvider,
 )
 from web3.providers.ipc import (
     IPCProvider,
-)
-from web3.providers.async_rpc import (
-    AsyncHTTPProvider,
 )
 from web3.providers.rpc import (
     HTTPProvider,
@@ -114,6 +113,9 @@ from web3.providers.websocket import (
 )
 from web3.testing import (
     Testing,
+)
+from web3.tol import (
+    Tol,
 )
 from web3.types import (  # noqa: F401
     Middleware,
@@ -125,12 +127,15 @@ from web3.version import (
 )
 
 if TYPE_CHECKING:
-    from web3.pm import PM  # noqa: F401
+    from web3.pm import (  # noqa: F401
+        PM,
+    )
 
 
 def get_default_modules() -> Dict[str, Sequence[Any]]:
     return {
         "eth": (Eth,),
+        "tol": (Tol,),
         "net": (Net,),
         "version": (Version,),
         "parity": (Parity, {
@@ -223,6 +228,7 @@ class Web3:
 
     # mypy Types
     eth: Eth
+    tol: Tol
     parity: Parity
     geth: Geth
     net: Net
@@ -265,7 +271,9 @@ class Web3:
 
     @property
     def api(self) -> str:
-        from web3 import __version__
+        from web3 import (
+            __version__,
+        )
         return __version__
 
     @staticmethod
@@ -353,7 +361,9 @@ class Web3:
             )
 
     def enable_unstable_package_management_api(self) -> None:
-        from web3.pm import PM  # noqa: F811
+        from web3.pm import (  # noqa: F811
+            PM,
+        )
         if not hasattr(self, '_pm'):
             attach_modules(self, {'_pm': (PM,)})
 
