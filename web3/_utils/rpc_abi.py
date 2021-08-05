@@ -147,6 +147,14 @@ class RPC:
 
     # Tolar
     tol_getBalance = RPCEndpoint("tol_getBalance")
+    tol_getLatestBalance = RPCEndpoint("tol_getLatestBalance")
+    tol_getBlockByHash = RPCEndpoint("tol_getBlockByHash")
+    tol_getBlockByNumber = RPCEndpoint("tol_getBlockByIndex")
+    tol_blockNumber = RPCEndpoint("tol_getBlockCount")
+    tol_getTransactionByHash = RPCEndpoint("tol_getTransaction")
+    tol_getTransactionReceipt = RPCEndpoint("tol_getTransactionReceipt")
+    tol_getNonce = RPCEndpoint("tol_getNonce")
+    tol_sendSignedTransaction = RPCEndpoint("tx_sendSignedTransaction")
 
 TRANSACTION_PARAMS_ABIS = {
     'data': 'bytes',

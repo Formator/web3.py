@@ -1,6 +1,3 @@
-from eth_account import (
-    Account,
-)
 from eth_typing import (
     Address,
     BlockNumber,
@@ -56,12 +53,14 @@ from web3._utils.rpc_abi import (
 from web3._utils.threads import (
     Timeout,
 )
+from web3._utils.tol_transactions import (
+    wait_for_transaction_receipt,
+)
 from web3._utils.transactions import (
     assert_valid_transaction_params,
     extract_valid_transaction_params,
     get_required_transaction,
     replace_transaction,
-    wait_for_transaction_receipt,
 )
 from web3.contract import (
     ConciseContract,
@@ -81,6 +80,9 @@ from web3.method import (
 )
 from web3.module import (
     Module,
+)
+from web3.tol_account import (
+    TollarAccount,
 )
 from web3.types import (
     ENS,
@@ -105,6 +107,7 @@ from web3.types import (
 
 class BaseTol(Module):
     _default_account: Union[ChecksumAddress, Empty] = empty
+    _default_block: BlockIdentifier = None #"latest"
     gasPriceStrategy = None
 
     """ property default_block """
@@ -127,19 +130,19 @@ class BaseTol(Module):
         return (transaction,)
 
     _send_transaction: Method[Callable[[TxParams], HexBytes]] = Method(
-        RPC.eth_sendTransaction,
+        RPC.tol_sendSignedTransaction,
         mungers=[send_transaction_munger]
     )
 
     _get_transaction: Method[Callable[[_Hash32], TxData]] = Method(
-        RPC.eth_getTransactionByHash,
+        RPC.tol_getTransactionByHash,
         mungers=[default_root_munger]
     )
 
-    _get_raw_transaction: Method[Callable[[_Hash32], HexBytes]] = Method(
-        RPC.eth_getRawTransactionByHash,
-        mungers=[default_root_munger]
-    )
+    # _get_raw_transaction: Method[Callable[[_Hash32], HexBytes]] = Method(
+    #     RPC.eth_getRawTransactionByHash,
+    #     mungers=[default_root_munger]
+    # )
 
     def _generate_gas_price(self, transaction_params: Optional[TxParams] = None) -> Optional[Wei]:
         if self.gasPriceStrategy:
@@ -175,27 +178,27 @@ class BaseTol(Module):
         return (block_identifier, full_transactions)
 
     """
-    `eth_getBlockByHash`
-    `eth_getBlockByNumber`
+    `tol_getBlockByHash`
+    `tol_getBlockByNumber`
     """
     _get_block: Method[Callable[..., BlockData]] = Method(
         method_choice_depends_on_args=select_method_for_block_identifier(
-            if_predefined=RPC.eth_getBlockByNumber,
-            if_hash=RPC.eth_getBlockByHash,
-            if_number=RPC.eth_getBlockByNumber,
+            if_predefined=RPC.tol_getBlockByNumber,
+            if_hash=RPC.tol_getBlockByHash,
+            if_number=RPC.tol_getBlockByNumber,
         ),
         mungers=[get_block_munger],
     )
 
     get_block_number: Method[Callable[[], BlockNumber]] = Method(
-        RPC.eth_blockNumber,
+        RPC.tol_blockNumber,
         mungers=None,
     )
 
-    get_coinbase: Method[Callable[[], ChecksumAddress]] = Method(
-        RPC.eth_coinbase,
-        mungers=None,
-    )
+    # get_coinbase: Method[Callable[[], ChecksumAddress]] = Method(
+    #     RPC.eth_coinbase,
+    #     mungers=None,
+    # )
 
     def block_id_munger(
         self,
@@ -242,9 +245,9 @@ class AsyncEth(BaseTol):
         # types ignored b/c mypy conflict with BlockingEth properties
         return await self._get_transaction(transaction_hash)  # type: ignore
 
-    async def get_raw_transaction(self, transaction_hash: _Hash32) -> TxData:
-        # types ignored b/c mypy conflict with BlockingEth properties
-        return await self._get_raw_transaction(transaction_hash)  # type: ignore
+    # async def get_raw_transaction(self, transaction_hash: _Hash32) -> TxData:
+    #     # types ignored b/c mypy conflict with BlockingEth properties
+    #     return await self._get_raw_transaction(transaction_hash)  # type: ignore
 
     async def generate_gas_price(
         self, transaction_params: Optional[TxParams] = None
@@ -270,14 +273,19 @@ class AsyncEth(BaseTol):
         # types ignored b/c mypy conflict with BlockingEth properties
         return await self.get_block_number()  # type: ignore
 
-    @property
-    async def coinbase(self) -> ChecksumAddress:
-        # types ignored b/c mypy conflict with BlockingEth properties
-        return await self.get_coinbase()  # type: ignore
+    # @property
+    # async def coinbase(self) -> ChecksumAddress:
+    #     # types ignored b/c mypy conflict with BlockingEth properties
+    #     return await self.get_coinbase()  # type: ignore
 
     _get_balance: Method[Callable[..., Awaitable[Wei]]] = Method(
         RPC.tol_getBalance,
         mungers=[BaseTol.block_id_munger],
+    )
+
+    _get_latest_balance: Method[Callable[..., Awaitable[Wei]]] = Method(
+        RPC.tol_getLatestBalance,
+        mungers=None,
     )
 
     async def get_balance(
@@ -285,6 +293,8 @@ class AsyncEth(BaseTol):
         account: Union[Address],
         block_identifier: Optional[BlockIdentifier] = None
     ) -> Wei:
+        if block_identifier is None or block_identifier ==  "latest":
+            return await self._get_latest_balance(account, None)
         return await self._get_balance(account, block_identifier)
 
     _get_code: Method[Callable[..., Awaitable[HexBytes]]] = Method(
@@ -300,7 +310,7 @@ class AsyncEth(BaseTol):
         return await self._get_code(account, block_identifier)
 
     _get_transaction_count: Method[Callable[..., Awaitable[Nonce]]] = Method(
-        RPC.eth_getTransactionCount,
+        RPC.tol_getNonce,
         mungers=[BaseTol.block_id_munger],
     )
 
@@ -326,7 +336,7 @@ class AsyncEth(BaseTol):
 
 
 class Tol(BaseTol, Module):
-    account = Account()
+    account = TollarAccount()
     defaultContractFactory: Type[Union[Contract, ConciseContract, ContractCaller]] = Contract  # noqa: E704,E501
     iban = Iban
 
@@ -349,14 +359,6 @@ class Tol(BaseTol, Module):
         )
         return self._protocol_version()
 
-    @property
-    def protocolVersion(self) -> str:
-        warnings.warn(
-            'protocolVersion is deprecated in favor of protocol_version',
-            category=DeprecationWarning,
-        )
-        return self.protocol_version
-
     is_syncing: Method[Callable[[], Union[SyncStatus, bool]]] = Method(
         RPC.eth_syncing,
         mungers=None,
@@ -366,9 +368,9 @@ class Tol(BaseTol, Module):
     def syncing(self) -> Union[SyncStatus, bool]:
         return self.is_syncing()
 
-    @property
-    def coinbase(self) -> ChecksumAddress:
-        return self.get_coinbase()
+    # @property
+    # def coinbase(self) -> ChecksumAddress:
+    #     return self.get_coinbase()
 
     is_mining: Method[Callable[[], bool]] = Method(
         RPC.eth_mining,
@@ -426,41 +428,24 @@ class Tol(BaseTol, Module):
     def default_account(self, account: Union[ChecksumAddress, Empty]) -> None:
         self._default_account = account
 
-    @property
-    def defaultAccount(self) -> Union[ChecksumAddress, Empty]:
-        warnings.warn(
-            'defaultAccount is deprecated in favor of default_account',
-            category=DeprecationWarning,
-        )
-        return self._default_account
-
-    @defaultAccount.setter
-    def defaultAccount(self, account: Union[ChecksumAddress, Empty]) -> None:
-        warnings.warn(
-            'defaultAccount is deprecated in favor of default_account',
-            category=DeprecationWarning,
-        )
-        self._default_account = account
-
-    get_balance: Method[Callable[..., Wei]] = Method(
+    _get_balance: Method[Callable[..., Wei]] = Method(
         RPC.tol_getBalance,
         mungers=[BaseTol.block_id_munger],
     )
 
-    def get_storage_at_munger(
-        self,
-        account: Union[Address, ChecksumAddress, ENS],
-        position: int,
-        block_identifier: Optional[BlockIdentifier] = None
-    ) -> Tuple[Union[Address, ChecksumAddress, ENS], int, BlockIdentifier]:
-        if block_identifier is None:
-            block_identifier = self.default_block
-        return (account, position, block_identifier)
-
-    get_storage_at: Method[Callable[..., HexBytes]] = Method(
-        RPC.eth_getStorageAt,
-        mungers=[get_storage_at_munger],
+    _get_latest_balance: Method[Callable[..., Wei]] = Method(
+        RPC.tol_getLatestBalance,
+        mungers=[default_root_munger],
     )
+
+    def get_balance(
+        self,
+        account: Union[Address],
+        block_identifier: Optional[BlockIdentifier] = None
+    ) -> Wei:
+        if block_identifier is None or block_identifier ==  "latest":
+            return self._get_latest_balance(account)
+        return self._get_balance(account, block_identifier)
 
     def get_proof_munger(
         self,
@@ -534,17 +519,17 @@ class Tol(BaseTol, Module):
     def get_transaction(self, transaction_hash: _Hash32) -> TxData:
         return self._get_transaction(transaction_hash)
 
-    def get_raw_transaction(self, transaction_hash: _Hash32) -> _Hash32:
-        return self._get_raw_transaction(transaction_hash)
+    # def get_raw_transaction(self, transaction_hash: _Hash32) -> _Hash32:
+    #     return self._get_raw_transaction(transaction_hash)
 
-    def getTransactionFromBlock(
-        self, block_identifier: BlockIdentifier, transaction_index: int
-    ) -> NoReturn:
-        """
-        Alias for the method getTransactionByBlock
-        Deprecated to maintain naming consistency with the json-rpc API
-        """
-        raise DeprecationWarning("This method has been deprecated as of EIP 1474.")
+    # def getTransactionFromBlock(
+    #     self, block_identifier: BlockIdentifier, transaction_index: int
+    # ) -> NoReturn:
+    #     """
+    #     Alias for the method getTransactionByBlock
+    #     Deprecated to maintain naming consistency with the json-rpc API
+    #     """
+    #     raise DeprecationWarning("This method has been deprecated as of EIP 1474.")
 
     get_transaction_by_block: Method[Callable[[BlockIdentifier, int], TxData]] = Method(
         method_choice_depends_on_args=select_method_for_block_identifier(
@@ -569,30 +554,23 @@ class Tol(BaseTol, Module):
             )
 
     get_transaction_receipt: Method[Callable[[_Hash32], TxReceipt]] = Method(
-        RPC.eth_getTransactionReceipt,
+        RPC.tol_getTransactionReceipt,
         mungers=[default_root_munger]
     )
 
-    get_transaction_count: Method[Callable[..., Nonce]] = Method(
-        RPC.eth_getTransactionCount,
-        mungers=[BaseTol.block_id_munger],
-    )
+    # get_transaction_count: Method[Callable[..., Nonce]] = Method(
+    #     RPC.eth_getTransactionCount,
+    #     mungers=[BaseTol.block_id_munger],
+    # )
 
-    @deprecated_for("replace_transaction")
-    def replaceTransaction(self, transaction_hash: _Hash32, new_transaction: TxParams) -> HexBytes:
-        return self.replace_transaction(transaction_hash, new_transaction)
+    get_transaction_count: Method[Callable[..., Nonce]] = Method(
+        RPC.tol_getNonce,
+        mungers=[default_root_munger],
+    )
 
     def replace_transaction(self, transaction_hash: _Hash32, new_transaction: TxParams) -> HexBytes:
         current_transaction = get_required_transaction(self.web3, transaction_hash)
         return replace_transaction(self.web3, current_transaction, new_transaction)
-
-    # todo: Update Any to stricter kwarg checking with TxParams
-    # https://github.com/python/mypy/issues/4441
-    @deprecated_for("modify_transaction")
-    def modifyTransaction(
-        self, transaction_hash: _Hash32, **transaction_params: Any
-    ) -> HexBytes:
-        return self.modify_transaction(transaction_hash, **transaction_params)
 
     def modify_transaction(
         self, transaction_hash: _Hash32, **transaction_params: Any
@@ -732,12 +710,6 @@ class Tol(BaseTol, Module):
         else:
             return ContractFactory
 
-    @deprecated_for("set_contract_factory")
-    def setContractFactory(
-        self, contractFactory: Type[Union[Contract, ConciseContract, ContractCaller]]
-    ) -> None:
-        return self.set_contract_factory(contractFactory)
-
     def set_contract_factory(
         self, contractFactory: Type[Union[Contract, ConciseContract, ContractCaller]]
     ) -> None:
@@ -755,43 +727,24 @@ class Tol(BaseTol, Module):
         return self._generate_gas_price(transaction_params)
         
     # Deprecated Methods
-    getBalance = DeprecatedMethod(get_balance, 'getBalance', 'get_balance')
-    getStorageAt = DeprecatedMethod(get_storage_at, 'getStorageAt', 'get_storage_at')
-    getBlock = DeprecatedMethod(get_block, 'getBlock', 'get_block')  # type: ignore
-    getBlockTransactionCount = DeprecatedMethod(get_block_transaction_count,
-                                                'getBlockTransactionCount',
-                                                'get_block_transaction_count')
-    getCode = DeprecatedMethod(get_code, 'getCode', 'get_code')
-    getProof = DeprecatedMethod(get_proof, 'getProof', 'get_proof')
-    getTransaction = DeprecatedMethod(get_transaction,   # type: ignore
-                                      'getTransaction',
-                                      'get_transaction')
-    getTransactionByBlock = DeprecatedMethod(get_transaction_by_block,
-                                             'getTransactionByBlock',
-                                             'get_transaction_by_block')
-    getTransactionCount = DeprecatedMethod(get_transaction_count,
-                                           'getTransactionCount',
-                                           'get_transaction_count')
-    getUncleByBlock = DeprecatedMethod(get_uncle_by_block, 'getUncleByBlock', 'get_uncle_by_block')
-    getUncleCount = DeprecatedMethod(get_uncle_count, 'getUncleCount', 'get_uncle_count')
-    sendTransaction = DeprecatedMethod(send_transaction,  # type: ignore
-                                       'sendTransaction',
-                                       'send_transaction')
-    signTransaction = DeprecatedMethod(sign_transaction, 'signTransaction', 'sign_transaction')
-    signTypedData = DeprecatedMethod(sign_typed_data, 'signTypedData', 'sign_typed_data')
-    submitHashrate = DeprecatedMethod(submit_hashrate, 'submitHashrate', 'submit_hashrate')
-    submitWork = DeprecatedMethod(submit_work, 'submitWork', 'submit_work')
-    getLogs = DeprecatedMethod(get_logs, 'getLogs', 'get_logs')
-    estimateGas = DeprecatedMethod(estimate_gas, 'estimateGas', 'estimate_gas')  # type: ignore
-    sendRawTransaction = DeprecatedMethod(send_raw_transaction,
-                                          'sendRawTransaction',
-                                          'send_raw_transaction')
-    getTransactionReceipt = DeprecatedMethod(get_transaction_receipt,
-                                             'getTransactionReceipt',
-                                             'get_transaction_receipt')
-    uninstallFilter = DeprecatedMethod(uninstall_filter, 'uninstallFilter', 'uninstall_filter')
-    getFilterLogs = DeprecatedMethod(get_filter_logs, 'getFilterLogs', 'get_filter_logs')
-    getFilterChanges = DeprecatedMethod(get_filter_changes,
-                                        'getFilterChanges',
-                                        'get_filter_changes')
-    getWork = DeprecatedMethod(get_work, 'getWork', 'get_work')
+    # getUncleCount = DeprecatedMethod(get_uncle_count, 'getUncleCount', 'get_uncle_count')
+    # sendTransaction = DeprecatedMethod(send_transaction,  # type: ignore
+    #                                    'sendTransaction',
+    #                                    'send_transaction')
+    # signTransaction = DeprecatedMethod(sign_transaction, 'signTransaction', 'sign_transaction')
+    # signTypedData = DeprecatedMethod(sign_typed_data, 'signTypedData', 'sign_typed_data')
+    # submitHashrate = DeprecatedMethod(submit_hashrate, 'submitHashrate', 'submit_hashrate')
+    # submitWork = DeprecatedMethod(submit_work, 'submitWork', 'submit_work')
+    # getLogs = DeprecatedMethod(get_logs, 'getLogs', 'get_logs')
+    # estimateGas = DeprecatedMethod(estimate_gas, 'estimateGas', 'estimate_gas')  # type: ignore
+    # sendRawTransaction = DeprecatedMethod(send_raw_transaction,
+    #                                       'sendRawTransaction',
+    #                                       'send_raw_transaction')
+    # getTransactionReceipt = DeprecatedMethod(get_transaction_receipt,
+    #                                          'getTransactionReceipt',
+    #                                          'get_transaction_receipt')
+    # uninstallFilter = DeprecatedMethod(uninstall_filter, 'uninstallFilter', 'uninstall_filter')
+    # getFilterLogs = DeprecatedMethod(get_filter_logs, 'getFilterLogs', 'get_filter_logs')
+    # getFilterChanges = DeprecatedMethod(get_filter_changes,
+    #                                     'getFilterChanges',
+    #                                     'get_filter_changes')
