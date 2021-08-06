@@ -82,7 +82,7 @@ from web3.module import (
     Module,
 )
 from web3.tol_account import (
-    TollarAccount,
+    TolarAccount,
 )
 from web3.types import (
     ENS,
@@ -336,7 +336,7 @@ class AsyncEth(BaseTol):
 
 
 class Tol(BaseTol, Module):
-    account = TollarAccount()
+    account = TolarAccount()
     defaultContractFactory: Type[Union[Contract, ConciseContract, ContractCaller]] = Contract  # noqa: E704,E501
     iban = Iban
 
