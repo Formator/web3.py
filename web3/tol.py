@@ -31,6 +31,9 @@ from typing import (
 )
 import warnings
 
+from tol_account.tol_account import (
+    TolarAccount,
+)
 from web3._utils.blocks import (
     select_method_for_block_identifier,
 )
@@ -80,9 +83,6 @@ from web3.method import (
 )
 from web3.module import (
     Module,
-)
-from web3.tol_account import (
-    TolarAccount,
 )
 from web3.types import (
     ENS,
