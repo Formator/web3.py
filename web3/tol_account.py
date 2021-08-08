@@ -76,9 +76,9 @@ class TolarLocalAccount(LocalAccount):
         )
         prefix = 'T'
         prefixHex = to_hex(text=prefix)[-2:]
-        addressHash = Web3.solidityKeccak(['address'], [ethAddress])
-        hashOfHash = Web3.solidityKeccak(['bytearray'], [addressHash])
-        tolarAddress =prefixHex +ethAddress[-2:] + hashOfHash[-1*(len(hashOfHash) - 8):]
+        addressHash = Web3.solidityKeccak(['bytes'], [ethAddress])
+        hashOfHash = Web3.solidityKeccak(['bytes'], [addressHash.hex()])
+        tolarAddress =prefixHex +ethAddress[-2:] + hashOfHash.hex()[-1*(len(hashOfHash.hex()) - 8):]
         return tolarAddress.lower()
 
     def __init__(self, key, account):
@@ -105,8 +105,11 @@ class TolarAccount(Account):
     @combomethod
     def create(self, extra_entropy=''):
         extra_key_bytes = text_if_str(to_bytes, extra_entropy)
-        key_bytes = keccak(os.urandom(32) + extra_key_bytes)
-        address = self.from_key(key_bytes)
+        #key_bytes = keccak(os.urandom(32) + extra_key_bytes)
+        
+        address = self.from_key(extra_key_bytes)
+        #key_bytes = keccak(extra_key_bytes)
+        #address = self.from_key(key_bytes)
         # tol_address = self.eth_address_to_tolar_address(ethAddress=address)
         return address
 
