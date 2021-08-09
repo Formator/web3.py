@@ -42,10 +42,6 @@ from eth_keyfile import (
     create_keyfile_json,
     decode_keyfile_json,
 )
-from eth_keys import (
-    KeyAPI,
-    keys,
-)
 from eth_keys.exceptions import (
     ValidationError,
 )
@@ -67,6 +63,11 @@ from hexbytes import (
 import json
 import os
 import warnings
+
+from tol_keys import (
+    KeyAPI,
+    keys,
+)
 
 
 class TolarLocalAccount(LocalAccount):
@@ -102,9 +103,11 @@ class TolarLocalAccount(LocalAccount):
 
 class TolarAccount(Account):
 
+    _keys = keys
+
     @combomethod
     def create(self, extra_entropy=''):
-        extra_key_bytes = text_if_str(to_bytes, extra_entropy)
+        extra_key_bytes = to_bytes(hexstr=extra_entropy)
         #key_bytes = keccak(os.urandom(32) + extra_key_bytes)
         
         address = self.from_key(extra_key_bytes)
@@ -141,5 +144,27 @@ class TolarAccount(Account):
         # tol_address = self.eth_address_to_tolar_address(ethAddress=local_address.address)
         return local_address
 
+    @combomethod
+    def _parsePrivateKey(self, key):
+        """
+        Generate a :class:`eth_keys.datatypes.PrivateKey` from the provided key.
+
+        If the key is already of type :class:`eth_keys.datatypes.PrivateKey`, return the key.
+
+        :param key: the private key from which a :class:`eth_keys.datatypes.PrivateKey`
+                    will be generated
+        :type key: hex str, bytes, int or :class:`eth_keys.datatypes.PrivateKey`
+        :returns: the provided key represented as a :class:`eth_keys.datatypes.PrivateKey`
+        """
+        if isinstance(key, self._keys.PrivateKey):
+            return key
+
+        try:
+            return self._keys.PrivateKey(HexBytes(key))
+        except ValidationError as original_exception:
+            raise ValueError(
+                "The private key must be exactly 32 bytes long, instead of "
+                "%d bytes." % len(key)
+            ) from original_exception
 
 
