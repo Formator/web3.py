@@ -24,7 +24,7 @@ from .native import (  # noqa: F401
 
 def get_default_backend_class() -> str:
     if is_coincurve_available():
-        return 'tol_keys.backends.CoinCurveECCBackend'
+        return 'tol_keys.backends.TolarCurveBackend' # return 'tol_keys.backends.CoinCurveECCBackend'
     else:
         return 'tol_keys.backends.NativeECCBackend'
 

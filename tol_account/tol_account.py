@@ -46,6 +46,7 @@ from eth_keys.exceptions import (
     ValidationError,
 )
 from eth_utils.conversions import (
+    add_0x_prefix,
     to_hex,
 )
 from eth_utils.curried import (
@@ -70,6 +71,10 @@ from tol_keys import (
 )
 
 
+class TolKeyAPI(KeyAPI):
+    pass
+#set_key_backend
+
 class TolarLocalAccount(LocalAccount):
     def eth_address_to_tolar_address(self, ethAddress:str) :
         from web3 import (
@@ -91,8 +96,12 @@ class TolarLocalAccount(LocalAccount):
         """
         self._publicapi = account
 
-        address = key.public_key.to_checksum_address()
-        self._address = self.eth_address_to_tolar_address(address)
+        publicKey = str(key.public_key)
+        publicHash = keccak(hexstr=publicKey)
+#         address = toChecksum("0x" + publicHash.slice(-40));
+# key.public_key.to_checksum_address()
+
+        self._address = self.eth_address_to_tolar_address(publicHash)
 
         key_raw = key.to_bytes()
         self._private_key = key_raw
@@ -107,10 +116,10 @@ class TolarAccount(Account):
 
     @combomethod
     def create(self, extra_entropy=''):
-        extra_key_bytes = to_bytes(hexstr=extra_entropy)
+        #bytes = to_bytes(hexstr=extra_entropy)
         #key_bytes = keccak(os.urandom(32) + extra_key_bytes)
         
-        address = self.from_key(extra_key_bytes)
+        address = self.from_key(extra_entropy)
         #key_bytes = keccak(extra_key_bytes)
         #address = self.from_key(key_bytes)
         # tol_address = self.eth_address_to_tolar_address(ethAddress=address)
@@ -139,6 +148,7 @@ class TolarAccount(Account):
             # They correspond to the same-named methods in Account.*
             # but without the private key argument
         """
+        private_key = add_0x_prefix(private_key)
         key = self._parsePrivateKey(private_key)
         local_address =  TolarLocalAccount(key, self)
         # tol_address = self.eth_address_to_tolar_address(ethAddress=local_address.address)
